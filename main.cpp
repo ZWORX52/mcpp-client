@@ -1,4 +1,9 @@
 // NOLINT(legal/copyright)
 #include <iostream>
 
-int main() { std::cout << "Hello World!" << std::endl; }
+#include "version.hpp"
+
+int main() {
+  std::cout << "Using version " << mcpp_client_VERSION_MAJOR << "."
+            << mcpp_client_VERSION_MINOR << std::endl;
+}
