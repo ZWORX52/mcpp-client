@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wall -Werror -Wextra -std=c++11 CMakeFiles/mcpp-client.dir/main.cpp.o -o mcpp-client 
