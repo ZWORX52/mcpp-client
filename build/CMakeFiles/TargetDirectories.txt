@@ -1,0 +1,3 @@
+/home/zworx52/mcpp-client/build/CMakeFiles/mcpp-client.dir
+/home/zworx52/mcpp-client/build/CMakeFiles/edit_cache.dir
+/home/zworx52/mcpp-client/build/CMakeFiles/rebuild_cache.dir
