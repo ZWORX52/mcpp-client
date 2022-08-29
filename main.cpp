@@ -8,12 +8,12 @@ const char *vertex_shader_source =
     "    gl_Position = vec4(a_pos.x, a_pos.y, a_pos.z, 1.0);\n"
     "}";
 
-const char *fragment_shader_source =
-    "#version 410 core\n"
-    "out vec4 frag_color;\n"
-    "void main() {\n"
-    "    frag_color = vec4(1.0f, 0.5f, 0.0f, 1.0f);\n"
-    "}";
+const char *fragment_shader_source = "#version 410 core\n"
+                                     "out vec4 frag_color;\n"
+                                     "uniform vec4 our_color;"
+                                     "void main() {\n"
+                                     "    frag_color = our_color;\n"
+                                     "}";
 
 void error_callback(int error, const char *description) {
   fprintf(stderr, "GLFW Error #%d: %s\n", error, description);
@@ -182,7 +182,14 @@ int main() {
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
+    // oooooh shifting colors
+    float time = glfwGetTime();
+    float orange_value = (sin((time - 0.5f) * FLOAT_PI)) * 0.5f + 0.5f;
+    int color_var_location = glGetUniformLocation(shader_program, "our_color");
     glUseProgram(shader_program);
+    glUniform4f(color_var_location, orange_value, orange_value * 0.5f, 0.0f,
+                1.0f);
+
     // i don't need to do this every frame, however it's more concise so hah
     glBindVertexArray(vao);
     // FINALLY A TRIANGLE
