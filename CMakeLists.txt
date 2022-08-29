@@ -7,6 +7,7 @@ project(mcpp_client)
 # add main.cpp
 set(INCLUDE_DIR include)
 set(SOURCES main.cpp ${INCLUDE_DIR}/glad/glad.h)
+set(CMAKE_BUILD_TYPE Debug)
 add_executable(mcpp_client ${SOURCES})
 
 add_library(glad ${INCLUDE_DIR}/glad/glad.c)

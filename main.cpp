@@ -1,20 +1,6 @@
 // NOLINT(legal/copyright)
 #include "./main.hpp"
 
-const char *vertex_shader_source =
-    "#version 410 core\n"
-    "layout (location = 0) in vec3 a_pos;\n"
-    "void main() {\n"
-    "    gl_Position = vec4(a_pos.x, a_pos.y, a_pos.z, 1.0);\n"
-    "}";
-
-const char *fragment_shader_source = "#version 410 core\n"
-                                     "out vec4 frag_color;\n"
-                                     "uniform vec4 our_color;"
-                                     "void main() {\n"
-                                     "    frag_color = our_color;\n"
-                                     "}";
-
 void error_callback(int error, const char *description) {
   fprintf(stderr, "GLFW Error #%d: %s\n", error, description);
 }
@@ -38,28 +24,76 @@ void framebuffer_size_callback(__attribute__((unused)) GLFWwindow *window,
   glViewport(0, 0, width, height);
 }
 
-int check_shader_for_errors(unsigned int shader) {
-  int success;
-  glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-  if (!success) {
-    char info_log[1024] = {0};
-    glGetShaderInfoLog(shader, 1024, NULL, info_log);
-    std::cout << "Error: Shader compilation failed" << std::endl
-              << info_log << std::endl;
-  }
-  return success;
-}
+unsigned int load_shader(const std::string &path_vertex,
+                         const std::string &path_fragment) {
+  std::string vertex_code, fragment_code;
+  std::ifstream vertex_file, fragment_file;
 
-int check_program_for_errors(unsigned int shader) {
-  int success;
-  glGetProgramiv(shader, GL_LINK_STATUS, &success);
-  if (!success) {
-    char info_log[1024] = {0};
-    glGetProgramInfoLog(shader, 1024, NULL, info_log);
-    std::cout << "Error: Program linking failed" << std::endl
-              << info_log << std::endl;
+  // throw exceptions please
+  vertex_file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+  fragment_file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+  try {
+    vertex_file.open(path_vertex);
+    fragment_file.open(path_fragment);
+    std::stringstream vertex_stream, fragment_stream;
+    // read files
+    vertex_stream << vertex_file.rdbuf();
+    fragment_stream << fragment_file.rdbuf();
+    vertex_file.close();
+    fragment_file.close();
+    vertex_code = vertex_stream.str();
+    fragment_code = fragment_stream.str();
+  } catch (const std::ifstream::failure &e) {
+    std::cout << "Failed reading shader files " << path_vertex << " and "
+              << path_fragment << " (error code #" << e.code()
+              << "):" << std::endl
+              << e.what() << std::endl;
+    return 0;
   }
-  return success;
+
+  int success;
+  char log[1024];
+
+  unsigned int vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+  // Because you can't take the address of an rvalue :P
+  const char *vertex_code_c_str = vertex_code.c_str();
+  glShaderSource(vertex_shader, 1, &vertex_code_c_str, NULL);
+  glCompileShader(vertex_shader);
+  // any compile errors?
+  glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    glGetShaderInfoLog(vertex_shader, 1024, NULL, log);
+    std::cout << "Vertex shader compilation failed: " << log << std::endl;
+    return 0;
+  }
+
+  unsigned int fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+  const char *fragment_code_c_str = fragment_code.c_str();
+  glShaderSource(fragment_shader, 1, &fragment_code_c_str, NULL);
+  glCompileShader(fragment_shader);
+  // any compile errors here?
+  glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    glGetShaderInfoLog(fragment_shader, 1024, NULL, log);
+    std::cout << "Fragment shader compilation failed: " << log << std::endl;
+    return 0;
+  }
+
+  unsigned int program_id = glCreateProgram();
+  glAttachShader(program_id, vertex_shader);
+  glAttachShader(program_id, fragment_shader);
+  glLinkProgram(program_id);
+  // any linking errors?
+  glGetProgramiv(program_id, GL_LINK_STATUS, &success);
+  if (!success) {
+    glGetProgramInfoLog(program_id, 1024, NULL, log);
+    std::cout << "Program linking failed: " << log << std::endl;
+    return 0;
+  }
+  glDeleteShader(vertex_shader);
+  glDeleteShader(fragment_shader);
+
+  return program_id;
 }
 
 int main() {
@@ -92,35 +126,23 @@ int main() {
   glfwSwapInterval(1);
   glViewport(0, 0, 640, 480);
 
-  // build and compile shaders
-  // -------------------------
-  // 1. vertex shader
-  unsigned int vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-  glShaderSource(vertex_shader, 1, &vertex_shader_source, NULL);
-  glCompileShader(vertex_shader);
-  if (!check_shader_for_errors(vertex_shader))
-    return 1;
-
-  // 2. fragment shader
-  unsigned int fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-  glShaderSource(fragment_shader, 1, &fragment_shader_source, NULL);
-  glCompileShader(fragment_shader);
-  if (!check_shader_for_errors(fragment_shader))
-    return 1;
-
-  // 3. link em, baby
-  unsigned int shader_program = glCreateProgram();
-  glAttachShader(shader_program, vertex_shader);
-  glAttachShader(shader_program, fragment_shader);
-  glLinkProgram(shader_program);
-  if (!check_program_for_errors(shader_program))
-    return 1;
-  glDeleteShader(vertex_shader);
-  glDeleteShader(fragment_shader);
+  unsigned int program =
+      load_shader("../shaders/main.vert", "../shaders/main.frag");
+  // perhaps i'm being run in the build dir, try up a dir?
+  if (!program) {
+    // load_shader returns 0 on failure. weird, i know, but other returns are
+    // valid and we need a uint sooo
+    program = load_shader("./shaders/main.vert", "./shaders/main.frag");
+    std::cout << "Note: shaders were found in non-default location ../shaders/ "
+                 "(instead of ./shaders/)"
+              << std::endl;
+  }
 
   // vertex data
-  float vertices[] = {-0.75f, -0.5f, 0.0f, -0.25f, -0.5f,
-                      0.0f,   -0.5f, 0.5f, 0.0f};
+  // format: x, y, z, r, g, b, etc, etc
+  float attributes[] = {-0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
+                        0.5f,  -0.5f, 0.0f, 0.0f, 1.0f, 0.0f,
+                        0.0f,  0.5f,  0.0f, 0.0f, 0.0f, 1.0f};
 
   unsigned int vao, vbo, ebo;
   glGenVertexArrays(1, &vao);
@@ -129,45 +151,19 @@ int main() {
   glBindVertexArray(vao);
 
   glBindBuffer(GL_ARRAY_BUFFER, vbo);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(attributes), attributes, GL_STATIC_DRAW);
 
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float),
+  // position attribute
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
                         reinterpret_cast<void *>(0));
   glEnableVertexAttribArray(0);
+
+  // color attribute
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+                        reinterpret_cast<void *>(3 * sizeof(float)));
+  glEnableVertexAttribArray(1);
 
   // above call to VertexAttribPointer registered "vbo" as "vao"'s bound vbo
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-  // however this isn't really necessary, nor is the above call, but it's only
-  // useful for when we don't want to accidentally modify the vao. generally
-  // unbinding vaos or vbos isn't necessary, because you will bind a new one
-  // before making any modifing calls (which overwrites anyway).
-  // glBindVertexArray(0);
-
-  // rectangle vertices
-  float rectangle_vertices[] = {0.75f, 0.5f,  0.0f, 0.75f, -0.5f, 0.0,
-                                0.25f, -0.5f, 0.0f, 0.25f, 0.5f,  0.0f};
-  unsigned int indices[] = {0, 1, 3, 1, 2, 3};
-
-  unsigned int rectangle_vao, rectangle_vbo, rectangle_ebo;
-  glGenVertexArrays(1, &rectangle_vao);
-  glGenBuffers(1, &rectangle_vbo);
-  glGenBuffers(1, &rectangle_ebo);
-  // case in point
-  glBindVertexArray(rectangle_vao);
-
-  glBindBuffer(GL_ARRAY_BUFFER, rectangle_vbo);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(rectangle_vertices), rectangle_vertices,
-               GL_STATIC_DRAW);
-
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,
-               GL_STATIC_DRAW);
-
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float),
-                        reinterpret_cast<void *>(0));
-  glEnableVertexAttribArray(0);
-
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 
   // uncomment for wireframes
@@ -182,21 +178,12 @@ int main() {
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    // oooooh shifting colors
-    float time = glfwGetTime();
-    float orange_value = (sin((time - 0.5f) * FLOAT_PI)) * 0.5f + 0.5f;
-    int color_var_location = glGetUniformLocation(shader_program, "our_color");
-    glUseProgram(shader_program);
-    glUniform4f(color_var_location, orange_value, orange_value * 0.5f, 0.0f,
-                1.0f);
+    glUseProgram(program);
 
     // i don't need to do this every frame, however it's more concise so hah
     glBindVertexArray(vao);
     // FINALLY A TRIANGLE
     glDrawArrays(GL_TRIANGLES, 0, 3);
-
-    glBindVertexArray(rectangle_vao);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
     // do the fancy that I don't have to worry about thank goodness ;)
     glfwSwapBuffers(window);
