@@ -133,62 +133,141 @@ int main() {
     // load_shader returns 0 on failure. weird, i know, but other returns are
     // valid and we need a uint sooo
     program = load_shader("./shaders/main.vert", "./shaders/main.frag");
-    std::cout << "Note: shaders were found in non-default location ../shaders/ "
-                 "(instead of ./shaders/)"
+    std::cout << "Note: shaders were found in non-default location ./shaders/ "
+                 "(instead of ../shaders/)"
               << std::endl;
   }
 
   // vertex data
-  // format: x, y, z, r, g, b, etc, etc
-  float attributes[] = {-0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
-                        0.5f,  -0.5f, 0.0f, 0.0f, 1.0f, 0.0f,
-                        0.0f,  0.5f,  0.0f, 0.0f, 0.0f, 1.0f};
+  // format: x, y, z, r, g, b, s, t, etc, etc
+  float attributes[] = {0.5f,  0.5f,  0.0f, 0.0f,  1.0f, 1.0f, 1.0f, 1.0f,
+                        0.5f,  -0.5f, 0.0f, 0.25f, 1.0f, 1.0f, 1.0f, 0.0f,
+                        -0.5f, -0.5f, 0.0f, 0.5f,  1.0f, 1.0f, 0.0f, 0.0f,
+                        -0.5f, 0.5f,  0.0f, 0.75f, 1.0f, 1.0f, 0.0f, 1.0f};
+
+  unsigned int indices[] = {0, 1, 3, 1, 2, 3};
 
   unsigned int vao, vbo, ebo;
   glGenVertexArrays(1, &vao);
   glGenBuffers(1, &vbo);
   glGenBuffers(1, &ebo);
-  glBindVertexArray(vao);
 
+  glBindVertexArray(vao);
   glBindBuffer(GL_ARRAY_BUFFER, vbo);
   glBufferData(GL_ARRAY_BUFFER, sizeof(attributes), attributes, GL_STATIC_DRAW);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,
+               GL_STATIC_DRAW);
 
   // position attribute
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
                         reinterpret_cast<void *>(0));
   glEnableVertexAttribArray(0);
-
   // color attribute
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
                         reinterpret_cast<void *>(3 * sizeof(float)));
   glEnableVertexAttribArray(1);
+  // texture coord attribute
+  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
+                        reinterpret_cast<void *>(6 * sizeof(float)));
+  glEnableVertexAttribArray(2);
 
-  // above call to VertexAttribPointer registered "vbo" as "vao"'s bound vbo
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  // textures
+  unsigned int tex1;
+  glGenTextures(1, &tex1);
+  glBindTexture(GL_TEXTURE_2D, tex1);
+  // set to default wrapping method
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  // set texture filtering parameters
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                  GL_NEAREST_MIPMAP_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  // load image into texture and gen mipmaps
+  // ha ha qoi go BRRRRRRRRRRRRRRRRR
+  qoi_desc desc;
+  void *pixels = qoi_read("../assets/container.qoi", &desc, 0);
+  if (pixels) {
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, desc.width, desc.height, 0, GL_RGB,
+                 GL_UNSIGNED_BYTE, pixels);
+    glGenerateMipmap(GL_TEXTURE_2D);
+  } else {
+    std::cout << "Failed to load texture" << std::endl;
+  }
+  free(pixels);
+
+  unsigned int tex2;
+  glGenTextures(1, &tex2);
+  glBindTexture(GL_TEXTURE_2D, tex2);
+  // set to default wrapping method
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  // set texture filtering parameters
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                  GL_NEAREST_MIPMAP_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  // load image into texture and gen mipmaps
+  // ha ha qoi go BRRRRRRRRRRRRRRRRR
+  pixels = qoi_read("../assets/awesomeface.qoi", &desc, 0);
+  if (pixels) {
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, desc.width, desc.height, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, pixels);
+    glGenerateMipmap(GL_TEXTURE_2D);
+  } else {
+    std::cout << "Failed to load texture" << std::endl;
+  }
+  free(pixels);
+
+  // tell opengl what texture unit each sampler2D (in frag shader) belongs to
+  glUseProgram(program);
+  glUniform1i(glGetUniformLocation(program, "texture1"), 0);
+  glUniform1i(glGetUniformLocation(program, "texture2"), 1);
 
   // uncomment for wireframes
   // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
+  std::vector<float> frame_times;
   while (!glfwWindowShouldClose(window)) {
     // Finally, a window we can use! Yay!
-    // *reads "Hello Triangle" on learnopengl.com* Oh no...
+    // *reads "Hello Triangle" on learnopengl.com* Oh no...o
+    float start = glfwGetTime();
 
     // rendering
     // ---------
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex1);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, tex2);
     glUseProgram(program);
+
+    // update the color uniform
+    float time = glfwGetTime();
+    float hue = fmod(time * 0.25f, 360.0f);
+    glUniform3f(glGetUniformLocation(program, "hue"), hue, 1.0f, 1.0f);
 
     // i don't need to do this every frame, however it's more concise so hah
     glBindVertexArray(vao);
     // FINALLY A TRIANGLE
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
+    float end = glfwGetTime();
+    frame_times.push_back(end - start);
     // do the fancy that I don't have to worry about thank goodness ;)
     glfwSwapBuffers(window);
     glfwPollEvents();
   }
+
+  double sum = std::accumulate(frame_times.begin(), frame_times.end(), 0.0);
+  std::cout << "sum: " << sum << std::endl;
+  std::cout << "Average frame time: " << sum / frame_times.size() << std::endl;
+
+  // optional: these resources are done, we can dealloc them if we want
+  glDeleteVertexArrays(1, &vao);
+  glDeleteBuffers(1, &vbo);
+  glDeleteBuffers(1, &ebo);
 
   std::cout << "Stopping!" << std::endl;
   glfwDestroyWindow(window);
