@@ -1,5 +1,6 @@
 #pragma once
 // NOLINT(legal/copyright)
+#define DEBUG
 #include "./version.hpp"
 #include "include/glad/glad.h"
 #define QOI_IMPLEMENTATION

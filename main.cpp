@@ -125,6 +125,7 @@ int main() {
   }
   glfwSwapInterval(1);
   glViewport(0, 0, 640, 480);
+  glEnable(GL_DEBUG_OUTPUT);
 
   unsigned int program =
       load_shader("../shaders/main.vert", "../shaders/main.frag");
