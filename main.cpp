@@ -228,6 +228,7 @@ int main() {
   // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
   std::vector<float> frame_times;
+  std::cout << std::endl;
   while (!glfwWindowShouldClose(window)) {
     // Finally, a window we can use! Yay!
     // *reads "Hello Triangle" on learnopengl.com* Oh no...o
@@ -256,14 +257,21 @@ int main() {
 
     float end = glfwGetTime();
     frame_times.push_back(end - start);
+    std::cout << "[2Aframe time: " << std::right << std::setw(12)
+              << end - start << ", fps: " << std::left << std::setw(12)
+              << 1 / (end - start) << std::endl;
+    std::cout << "avg frame time: " << std::right << std::setw(12)
+              << std::accumulate(frame_times.begin(), frame_times.end(), 0.0) /
+                     frame_times.size()
+              << ", avg fps: "
+              << 1 / (std::accumulate(frame_times.begin(), frame_times.end(),
+                                      0.0) /
+                      frame_times.size())
+              << std::endl;
     // do the fancy that I don't have to worry about thank goodness ;)
     glfwSwapBuffers(window);
     glfwPollEvents();
   }
-
-  double sum = std::accumulate(frame_times.begin(), frame_times.end(), 0.0);
-  std::cout << "sum: " << sum << std::endl;
-  std::cout << "Average frame time: " << sum / frame_times.size() << std::endl;
 
   // optional: these resources are done, we can dealloc them if we want
   glDeleteVertexArrays(1, &vao);

@@ -8,6 +8,7 @@
 #include <GLFW/glfw3.h>
 #include <cmath>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <numeric>
 #include <sstream>
